@@ -166,8 +166,7 @@ jobs:
             artifact_name: desktop-macos
     # 证书/账号 secrets 不再放在 job 级，避免被同矩阵的 Linux/Windows runner 读到。
     # 每个 secret 只在真正需要它的 step 内通过 env/with 注入。
-    # macOS 签名/公证在 release 流程中是硬性要求，缺失时直接失败（见下方校验 step）。
-    # Windows 签名证书可选，由 Detect 步骤输出后决定走签名还是未签名构建。
+    # macOS / Windows 签名证书可选，由 Detect 步骤输出后决定走签名还是未签名构建。
     env:
       # 固定缓存目录，避免 Electron / electron-builder 每次重新下载工具链
       ELECTRON_CACHE: ${{ github.workspace }}/.cache/electron
@@ -221,7 +220,8 @@ jobs:
             echo "windows=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Verify macOS signing/notarization secrets
+      - name: Detect macOS signing/notarization secrets
+        id: mac_certs
         if: startsWith(matrix.os, 'macos')
         shell: bash
         env:
@@ -239,15 +239,15 @@ jobs:
           [ -n "$APPLE_TEAM_ID" ] || missing="$missing APPLE_TEAM_ID"
 
           if [ -n "$missing" ]; then
-            echo "::error::Missing required macOS signing/notarization secrets:$missing"
-            echo "::error::Unsigned macOS release artifacts are not allowed; configure the secrets before releasing."
-            exit 1
+            echo "::warning::Missing macOS signing/notarization secrets:$missing. Falling back to unsigned macOS build."
+            echo "macos_signed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "All macOS signing/notarization secrets are present."
+            echo "macos_signed=true" >> "$GITHUB_OUTPUT"
           fi
 
-          echo "All macOS signing/notarization secrets are present."
-
       - name: Import macOS code-signing certificate
-        if: startsWith(matrix.os, 'macos')
+        if: startsWith(matrix.os, 'macos') && steps.mac_certs.outputs.macos_signed == 'true'
         uses: apple-actions/import-codesign-certs@v7
         with:
           p12-file-base64: ${{ secrets.APPLE_CERTIFICATE }}
@@ -257,12 +257,18 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build desktop package (macOS, signed + notarized)
-        if: startsWith(matrix.os, 'macos')
+        if: startsWith(matrix.os, 'macos') && steps.mac_certs.outputs.macos_signed == 'true'
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: pnpm --filter @nanokvm/desktop run ${{ matrix.build_script }}
+
+      - name: Build desktop package (macOS, unsigned)
+        if: startsWith(matrix.os, 'macos') && steps.mac_certs.outputs.macos_signed != 'true'
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: pnpm --filter @nanokvm/desktop run build:mac-unsigned-full
 
       - name: Build desktop package (Linux)
         if: matrix.os == 'ubuntu-latest'

@@ -17,6 +17,7 @@
     "build:mac": "pnpm run build && electron-builder --mac --publish never",
     "build:mac-unsigned-x64": "pnpm run build && electron-builder --mac --x64 --publish never -c.mac.forceCodeSigning=false",
     "build:mac-unsigned-arm64": "pnpm run build && electron-builder --mac --arm64 --publish never -c.mac.forceCodeSigning=false",
+    "build:mac-unsigned-full": "pnpm run build && electron-builder --mac --x64 --arm64 --publish never -c.mac.forceCodeSigning=false -c.dmg.sign=false",
     "build:linux": "pnpm run build && electron-builder --linux --publish never",
     "build:win-full": "pnpm run build && electron-builder --win --x64 --arm64 --publish never",
     "build:mac-full": "pnpm run build && electron-builder --mac --x64 --arm64 --publish never",
