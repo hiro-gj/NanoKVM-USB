@@ -1,4 +1,4 @@
-import { ReactElement, useState } from 'react'
+import { useState } from 'react'
 
 import { Kbd, KbdGroup } from '@/components/ui/kbd.tsx'
 import { KeyboardReport } from '@/libs/keyboard/keyboard.ts'
@@ -17,7 +17,7 @@ type ShortcutProps = {
   shortcut: ShortcutInterface
 }
 
-export const Shortcut = ({ shortcut }: ShortcutProps): ReactElement => {
+export const Shortcut = ({ shortcut }: ShortcutProps) => {
   const [isLoading, setIsLoading] = useState(false)
 
   async function handleClick(): Promise<void> {
@@ -61,7 +61,9 @@ export const Shortcut = ({ shortcut }: ShortcutProps): ReactElement => {
     } finally {
       if (!released) {
         const report = keyboard.reset()
-        await getDevice().sendKeyboardData(report).catch(() => {})
+        await getDevice()
+          .sendKeyboardData(report)
+          .catch(() => {})
       }
     }
   }
