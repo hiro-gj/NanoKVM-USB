@@ -192,7 +192,18 @@ jobs:
           sudo apt-get install -y build-essential python3 libudev-dev rpm
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: |
+          # desktop/package.json の ajv@<6.14.0 override ('>=6.14.0') により ajv v8 が解決され、
+          # electron-builder (@develar/schema-utils / ajv-keywords@3) が起動時にクラッシュする問題を補正
+          node -e '
+            const fs = require("fs");
+            const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
+            if (pkg.pnpm?.overrides?.["ajv@<6.14.0"] === ">=6.14.0") {
+              pkg.pnpm.overrides["ajv@<6.14.0"] = "^6.14.0";
+              fs.writeFileSync("package.json", JSON.stringify(pkg, null, 2) + "\n");
+            }
+          '
+          pnpm install --no-frozen-lockfile
 
       - name: Build desktop application
         run: |
