@@ -53,46 +53,10 @@ jobs:
       - name: Unit tests
         run: pnpm test
 
-  detect-changes:
-    name: Detect Changed Paths
-    # workflow_dispatch 时不需要过滤，直接全量构建
-    if: github.event_name != 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    outputs:
-      browser: ${{ steps.filter.outputs.browser }}
-      desktop: ${{ steps.filter.outputs.desktop }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-
-      - name: Filter changes
-        id: filter
-        uses: dorny/paths-filter@v4
-        with:
-          filters: |
-            browser:
-              - 'apps/browser/**'
-              - 'packages/**'
-              - 'package.json'
-              - 'tsconfig.base.json'
-              - 'pnpm-lock.yaml'
-              - 'pnpm-workspace.yaml'
-            desktop:
-              - 'apps/desktop/**'
-              - 'packages/**'
-              - 'package.json'
-              - 'tsconfig.base.json'
-              - 'pnpm-lock.yaml'
-              - 'pnpm-workspace.yaml'
-
   build-browser:
     name: Build Browser Bundle
-    needs: detect-changes
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    if: always() && (github.event_name == 'workflow_dispatch' || needs.detect-changes.outputs.browser == 'true')
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -123,10 +87,8 @@ jobs:
 
   build-desktop:
     name: Build Desktop (${{ matrix.target }})
-    needs: detect-changes
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
-    if: always() && (github.event_name == 'workflow_dispatch' || needs.detect-changes.outputs.desktop == 'true')
     env:
       # 固定缓存目录，避免 Electron / electron-builder 每次重新下载工具链
       ELECTRON_CACHE: ${{ github.workspace }}/.cache/electron
@@ -146,7 +108,6 @@ jobs:
           - os: macos-latest
             target: macos
             build_script: build:mac-unsigned
-            artifact_name: desktop-macos-x64
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -192,7 +153,8 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
         run: pnpm --filter @nanokvm/desktop run ${{ matrix.build_script }}
 
-      - name: Upload desktop installers
+      - name: Upload Linux/Windows installers
+        if: matrix.os != 'macos-latest'
         uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.artifact_name }}
@@ -201,7 +163,27 @@ jobs:
             apps/desktop/dist/*.AppImage
             apps/desktop/dist/*.deb
             apps/desktop/dist/*.rpm
-            apps/desktop/dist/*.dmg
-            apps/desktop/dist/*.zip
+            apps/desktop/dist/latest*.yml
+          if-no-files-found: error
+
+      - name: Upload macOS x64 installers
+        if: matrix.os == 'macos-latest'
+        uses: actions/upload-artifact@v7
+        with:
+          name: desktop-macos-x64
+          path: |
+            apps/desktop/dist/*-x64.dmg
+            apps/desktop/dist/*-x64.zip
+            apps/desktop/dist/latest*.yml
+          if-no-files-found: error
+
+      - name: Upload macOS arm64 installers
+        if: matrix.os == 'macos-latest'
+        uses: actions/upload-artifact@v7
+        with:
+          name: desktop-macos-arm64
+          path: |
+            apps/desktop/dist/*-arm64.dmg
+            apps/desktop/dist/*-arm64.zip
             apps/desktop/dist/latest*.yml
           if-no-files-found: error
